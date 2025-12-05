@@ -16,5 +16,10 @@
     "url": "https://github.com/darkchii/score-inspector-3-diffcalc/issues"
   },
   "homepage": "https://github.com/darkchii/score-inspector-3-diffcalc#readme",
-  "description": ""
+  "description": "",
+  "dependencies": {
+    "@sequelize/core": "^7.0.0-alpha.42",
+    "@sequelize/postgres": "^7.0.0-alpha.47",
+    "dotenv": "^17.2.3"
+  }
 }
