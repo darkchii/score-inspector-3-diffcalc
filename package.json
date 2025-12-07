@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "repository": {
     "type": "git",
@@ -18,8 +19,10 @@
   "homepage": "https://github.com/darkchii/score-inspector-3-diffcalc#readme",
   "description": "",
   "dependencies": {
-    "@sequelize/core": "^7.0.0-alpha.42",
-    "@sequelize/postgres": "^7.0.0-alpha.47",
-    "dotenv": "^17.2.3"
+    "axios": "^1.13.2",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
+    "pg-hstore": "^2.3.4",
+    "sequelize": "^6.37.7"
   }
 }
