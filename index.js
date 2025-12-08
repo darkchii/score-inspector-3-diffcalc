@@ -39,12 +39,9 @@ async function processScores() {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: {
                 attr_diff: null,
-                attr_recalc: true,
-                attr_recalc: null
+                attr_recalc: true
             }
         },
-        //order by beatmap_id
-        order: [['beatmap_id', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
