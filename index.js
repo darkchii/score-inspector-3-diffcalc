@@ -99,7 +99,13 @@ async function main() {
     console.log('[DIFF-CALC] It will automatically start!');
 
     while (true) {
-        await processScores();
+        try{
+            await processScores();
+        } catch (error) {
+            console.error('[DIFF-CALC] Unexpected error in main loop:', error);
+            console.log('[DIFF-CALC] Waiting for 30 seconds before retrying...');
+            await new Promise(resolve => setTimeout(resolve, 30000));
+        }
     }
 }
 
