@@ -45,7 +45,7 @@ async function processScores() {
         limit: SCORES_PER_BATCH
     });
 
-    if(scores.length === 0) {
+    if (scores.length === 0) {
         //pause time :D
         console.log('[DIFF-CALC] No scores found for processing. Taking a small break.');
         //sleep for 30 seconds
@@ -55,17 +55,6 @@ async function processScores() {
 
     console.log(`[DIFF-CALC] Fetched ${scores.length} scores to process.`);
 
-    // for await (const score of scores) {
-    //     const scoreId = score.id;
-    //     try {
-    //         const data = await requestData(score);
-    //         score.attr_diff = data;
-    //         score.attr_recalc = false;
-    //     } catch (error) {
-    //         console.error(`[DIFF-CALC] Error processing score ID ${scoreId}:`, error);
-    //     }
-    // }
-
     // Process scores in batches to speed up
     let time = Date.now();
     for (let i = 0; i < scores.length; i += BATCH_FETCH) {
@@ -74,7 +63,7 @@ async function processScores() {
             const scoreId = score.id;
             try {
                 const data = await requestData(score);
-                if(!data || Object.keys(data).length === 0) {
+                if (!data || Object.keys(data).length === 0) {
                     console.error(`[DIFF-CALC] Received empty data for score ID ${scoreId}. Skipping update.`);
                     return;
                 }
@@ -86,20 +75,21 @@ async function processScores() {
             }
         }));
     }
-    let elapsed = Date.now() - time;
-    //output scores/second
-    console.log(`[DIFF-CALC] Processed ${scores.length} scores in ${elapsed}ms (${((scores.length / elapsed) * 1000).toFixed(2)} scores/second)`);
-
-    // Save all updated scores
-
-    for await (const score of scores) {
-        try {
-            await score.save();
-        } catch (error) {
-            console.error(`[DIFF-CALC] Error saving score ID ${score.id}:`, error);
+    
+    const t = await Databases.osuAlt.transaction();
+    try {
+        for await (const score of scores) {
+            await score.save({ transaction: t });
         }
+        await t.commit();
+    } catch (error) {
+        console.error(`[DIFF-CALC] Error saving scores to database:`, error);
+        await t.rollback();
     }
 
+    let elapsed = Date.now() - time;
+    console.log(`[DIFF-CALC] Processed ${scores.length} scores in ${elapsed}ms (${((scores.length / elapsed) * 1000).toFixed(2)} scores/second)`);
+    
     console.log('[DIFF-CALC] Score processing batch completed.');
 }
 
@@ -107,7 +97,7 @@ async function main() {
     console.log('[DIFF-CALC] Welcome to scores inspector difficulty calculator...');
     console.log('[DIFF-CALC] It will automatically start!');
 
-    while (true){
+    while (true) {
         await processScores();
     }
 }
