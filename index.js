@@ -42,6 +42,7 @@ async function processScores() {
                 attr_recalc: true
             }
         },
+        order: [['beatmap_id', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
