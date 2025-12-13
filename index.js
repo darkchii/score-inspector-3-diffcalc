@@ -3,7 +3,7 @@ const { AltScoreLive, CheckConnection, Databases } = require('./helpers/db');
 const { default: axios } = require('axios');
 require('dotenv').config();
 
-const SCORES_PER_BATCH = 500;
+const SCORES_PER_BATCH = 1000;
 const BATCH_FETCH = 10;
 const DEV_USER_ID = -1; //If not -1, it will only process scores from this user (good for testing random scores but same profile)
 
