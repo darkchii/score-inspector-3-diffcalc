@@ -42,7 +42,6 @@ async function processScores() {
                 attr_recalc: true
             }
         },
-        order: [['beatmap_id', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
@@ -56,8 +55,11 @@ async function processScores() {
 
     console.log(`[DIFF-CALC] Fetched ${scores.length} scores to process.`);
 
+
     // Process scores in batches to speed up
-    let time = Date.now();
+    let timeCalc = Date.now();
+    const dataMap = new Map();
+
     for (let i = 0; i < scores.length; i += BATCH_FETCH) {
         const batch = scores.slice(i, i + BATCH_FETCH);
         await Promise.all(batch.map(async (score) => {
@@ -69,28 +71,42 @@ async function processScores() {
                     return;
                 }
 
-                score.attr_diff = data;
-                score.attr_recalc = false;
+                dataMap.set(scoreId, data);
             } catch (error) {
                 console.error(`[DIFF-CALC] Error processing score ID ${scoreId}:`, error);
             }
         }));
     }
-    
-    const t = await Databases.osuAlt.transaction();
+
+    let timeCalcElapsed = Date.now() - timeCalc;
+
+    let timeSubmit = Date.now();
+
+    const values = Array.from(dataMap.entries()).map(([scoreId, data]) => {
+        const attrDiffStr = JSON.stringify(data);
+        return `(${scoreId}, '${attrDiffStr.replace(/'/g, "''")}'::jsonb)`
+    }).join(', ');
+
+    const updateQuery = `
+        UPDATE scorelive
+        SET attr_diff = v.attr_diff, attr_recalc = false
+        FROM (VALUES ${values}) AS v(id, attr_diff)
+        WHERE scorelive.id = v.id;
+    `;
+
     try {
-        for await (const score of scores) {
-            await score.save({ transaction: t });
-        }
-        await t.commit();
+        await Databases.osuAlt.transaction(async (t) => {
+            await Databases.osuAlt.query(updateQuery, { transaction: t });
+        });
+        console.log('[DIFF-CALC] Successfully updated scores in the database.');
     } catch (error) {
-        console.error(`[DIFF-CALC] Error saving scores to database:`, error);
-        await t.rollback();
+        console.error('[DIFF-CALC] Error updating scores in the database:', error);
     }
 
-    let elapsed = Date.now() - time;
-    console.log(`[DIFF-CALC] Processed ${scores.length} scores in ${elapsed}ms (${((scores.length / elapsed) * 1000).toFixed(2)} scores/second)`);
-    
+    let timeSubmitElapsed = Date.now() - timeSubmit;
+    let elapsed = timeCalcElapsed + timeSubmitElapsed;
+    console.log(`[DIFF-CALC] Processed ${scores.length} scores in ${elapsed}ms (${((scores.length / elapsed) * 1000).toFixed(2)} scores/second) - Calculation: ${timeCalcElapsed}ms, Save: ${timeSubmitElapsed}ms`);
+
     console.log('[DIFF-CALC] Score processing batch completed.');
 }
 
@@ -99,7 +115,7 @@ async function main() {
     console.log('[DIFF-CALC] It will automatically start!');
 
     while (true) {
-        try{
+        try {
             await processScores();
         } catch (error) {
             console.error('[DIFF-CALC] Unexpected error in main loop:', error);
