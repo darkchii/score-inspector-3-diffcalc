@@ -1,5 +1,5 @@
 const { Op } = require('sequelize');
-const { AltScoreLive, CheckConnection, Databases } = require('./helpers/db');
+const { AltScoreLive, CheckConnection, Databases, AltBeatmapLive } = require('./helpers/db');
 const { default: axios } = require('axios');
 require('dotenv').config();
 
@@ -39,9 +39,16 @@ async function processScores() {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: {
                 attr_diff: null,
-                attr_recalc: true
+                attr_recalc: true,
+                [Op.and]: { //fixing faulty calculations that get through somehow
+                    attr_diff: { [Op.ne]: null },
+                    ['attr_diff.star_rating']: 0,
+                    ['attr_diff.max_combo']: 0,
+                    '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
+                }
             }
         },
+        include: [{ model: AltBeatmapLive }],
         limit: SCORES_PER_BATCH
     });
 
