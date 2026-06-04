@@ -68,7 +68,8 @@ const AltScoreLiveModel = (db) => db.define('ScoreLive', {
     attr_date: { type: DataTypes.DATE },
     attr_recalc: { type: DataTypes.BOOLEAN },
     is_ss: { type: DataTypes.BOOLEAN },
-    is_fc: { type: DataTypes.BOOLEAN }
+    is_fc: { type: DataTypes.BOOLEAN },
+    modded_sr: { type: DataTypes.FLOAT },
 }, {
     tableName: 'scorelive',
     timestamps: false
