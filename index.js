@@ -39,12 +39,13 @@ async function countMissingScores() {
                 modded_sr: null,
                 attr_diff: null,
                 attr_recalc: true,
-                [Op.and]: { //fixing faulty calculations that get through somehow
-                    attr_diff: { [Op.ne]: null },
-                    ['attr_diff.star_rating']: 0,
-                    ['attr_diff.max_combo']: 0,
-                    '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
-                }
+                modded_sr: 0
+                // [Op.and]: { //fixing faulty calculations that get through somehow
+                //     attr_diff: { [Op.ne]: null },
+                //     ['attr_diff.star_rating']: 0,
+                //     ['attr_diff.max_combo']: 0,
+                //     '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
+                // }
             }
         },
         include: [{ model: AltBeatmapLive }]
@@ -63,12 +64,13 @@ async function processScores(totalMissing) {
                 modded_sr: null,
                 attr_diff: null,
                 attr_recalc: true,
-                [Op.and]: { //fixing faulty calculations that get through somehow
-                    attr_diff: { [Op.ne]: null },
-                    ['attr_diff.star_rating']: 0,
-                    ['attr_diff.max_combo']: 0,
-                    '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
-                }
+                modded_sr: 0
+                // [Op.and]: { //fixing faulty calculations that get through somehow
+                //     attr_diff: { [Op.ne]: null },
+                //     ['attr_diff.star_rating']: 0,
+                //     ['attr_diff.max_combo']: 0,
+                //     '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
+                // }
             }
         },
         order: [['beatmap_id_fk', 'ASC']],
