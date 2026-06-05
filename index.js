@@ -35,20 +35,18 @@ async function countMissingScores() {
     const count = await AltScoreLive.count({
         where: {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
-            [Op.or]: {
-                modded_sr: null,
-                attr_diff: null,
-                attr_recalc: true,
-                modded_sr: 0
-                // [Op.and]: { //fixing faulty calculations that get through somehow
-                //     attr_diff: { [Op.ne]: null },
-                //     ['attr_diff.star_rating']: 0,
-                //     ['attr_diff.max_combo']: 0,
-                //     '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
-                // }
-            }
-        },
-        include: [{ model: AltBeatmapLive }]
+            [Op.or]: [
+                //modded_sr check for null and 0
+                {
+                    [Op.or]: [
+                        { modded_sr: null },
+                        { modded_sr: 0 }
+                    ]
+                },
+                { attr_diff: null },
+                { attr_recalc: true },
+            ]
+        }
     });
     console.log(`[DIFF-CALC] Found ${count.toFixed(0)} scores missing diff calculations.`);
     return count;
@@ -60,21 +58,19 @@ async function processScores(totalMissing) {
     const scores = await AltScoreLive.findAll({
         where: {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
-            [Op.or]: {
-                modded_sr: null,
-                attr_diff: null,
-                attr_recalc: true,
-                modded_sr: 0
-                // [Op.and]: { //fixing faulty calculations that get through somehow
-                //     attr_diff: { [Op.ne]: null },
-                //     ['attr_diff.star_rating']: 0,
-                //     ['attr_diff.max_combo']: 0,
-                //     '$BeatmapLive.max_combo$': { [Op.gt]: 0 }
-                // }
-            }
+            [Op.or]: [
+                //modded_sr check for null and 0
+                {
+                    [Op.or]: [
+                        { modded_sr: null },
+                        { modded_sr: 0 }
+                    ]
+                },
+                { attr_diff: null },
+                { attr_recalc: true },
+            ]
         },
         order: [['beatmap_id_fk', 'ASC']],
-        include: [{ model: AltBeatmapLive }],
         limit: SCORES_PER_BATCH
     });
 
