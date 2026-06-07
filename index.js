@@ -1,4 +1,4 @@
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
 const { AltScoreLive, CheckConnection, Databases, AltBeatmapLive } = require('./helpers/db');
 const { default: axios } = require('axios');
 require('dotenv').config();
@@ -36,17 +36,12 @@ async function countMissingScores() {
         where: {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: [
-                //modded_sr check for null and 0
-                {
-                    [Op.or]: [
-                        { modded_sr: null },
-                        { modded_sr: 0 }
-                    ]
-                },
+                { modded_sr: null },
                 { attr_diff: null },
                 { attr_recalc: true },
             ]
-        }
+        },
+        include: [{ model: AltBeatmapLive, required: true }],
     });
     console.log(`[DIFF-CALC] Found ${count.toFixed(0)} scores missing diff calculations.`);
     return count;
@@ -59,18 +54,13 @@ async function processScores(totalMissing) {
         where: {
             ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: [
-                //modded_sr check for null and 0
-                {
-                    [Op.or]: [
-                        { modded_sr: null },
-                        { modded_sr: 0 }
-                    ]
-                },
+                { modded_sr: null },
                 { attr_diff: null },
                 { attr_recalc: true },
             ]
         },
-        order: [['beatmap_id_fk', 'ASC']],
+        include: [{ model: AltBeatmapLive, required: true }],
+        // order: [['id', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
@@ -98,6 +88,10 @@ async function processScores(totalMissing) {
                     return;
                 }
 
+                if (obj.is_errored === false) {
+                    delete obj.is_errored;
+                }
+
                 dataMap.set(scoreId, data);
             } catch (error) {
                 console.error(`[DIFF-CALC] Error processing score ID ${scoreId}:`, error);
@@ -122,9 +116,9 @@ async function processScores(totalMissing) {
     `;
 
     try {
-        await Databases.osuAlt.transaction(async (t) => {
-            await Databases.osuAlt.query(updateQuery, { transaction: t });
-        });
+        // await Databases.osuAlt.transaction(async (t) => {
+        //     await Databases.osuAlt.query(updateQuery, { transaction: t });
+        // });
     } catch (error) {
         console.error('[DIFF-CALC] Error updating scores in the database:', error);
     }
