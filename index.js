@@ -88,8 +88,8 @@ async function processScores(totalMissing) {
                     return;
                 }
 
-                if (obj.is_errored === false) {
-                    delete obj.is_errored;
+                if (data.is_errored === false) {
+                    delete data.is_errored;
                 }
 
                 dataMap.set(scoreId, data);
@@ -116,9 +116,9 @@ async function processScores(totalMissing) {
     `;
 
     try {
-        // await Databases.osuAlt.transaction(async (t) => {
-        //     await Databases.osuAlt.query(updateQuery, { transaction: t });
-        // });
+        await Databases.osuAlt.transaction(async (t) => {
+            await Databases.osuAlt.query(updateQuery, { transaction: t });
+        });
     } catch (error) {
         console.error('[DIFF-CALC] Error updating scores in the database:', error);
     }
