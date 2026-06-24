@@ -1,6 +1,7 @@
 const { Sequelize } = require('sequelize');
-const AltScoreLiveModel = require('../models/AltScoreLiveModel');
 const AltBeatmapLiveModel = require('../models/AltBeatmapLiveModel');
+const AltScoreAttributeModel = require('../models/AltScoreAttributeModel');
+const AltScoreLiveModel = require('../models/AltScoreLiveModel');
 require('dotenv').config();
 
 let databases = {
@@ -40,12 +41,16 @@ async function CheckConnection(database, timeout = 10000) {
     return success;
 }
 
-const AltScoreLive = AltScoreLiveModel(databases.osuAlt);
+const AltScoreAttribute = AltScoreAttributeModel(databases.osuAlt);
 const AltBeatmapLive = AltBeatmapLiveModel(databases.osuAlt);
+const AltScoreLive = AltScoreLiveModel(databases.osuAlt);
 
-//each score has a beatmap,multiple scores can have the same beatmap
-AltScoreLive.belongsTo(AltBeatmapLive, { foreignKey: 'beatmap_id', targetKey: 'beatmap_id' });
+AltScoreAttribute.belongsTo(AltScoreLive, { foreignKey: 'score_id', targetKey: 'id' });
+AltScoreLive.hasOne(AltScoreAttribute, { foreignKey: 'score_id', sourceKey: 'id' });
+
+AltScoreLive.belongsTo(AltBeatmapLive, { foreignKey: 'beatmap_id_fk', targetKey: 'beatmap_id' });
 
 module.exports.CheckConnection = CheckConnection;
-module.exports.AltScoreLive = AltScoreLive;
 module.exports.AltBeatmapLive = AltBeatmapLive;
+module.exports.AltScoreAttribute = AltScoreAttribute;
+module.exports.AltScoreLive = AltScoreLive;

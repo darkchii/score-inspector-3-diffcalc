@@ -1,18 +1,31 @@
 const { Op, Sequelize } = require('sequelize');
-const { AltScoreLive, CheckConnection, Databases, AltBeatmapLive } = require('./helpers/db');
+const { CheckConnection, Databases, AltScoreAttribute, AltScoreLive, AltBeatmapLive } = require('./helpers/db');
 const { default: axios } = require('axios');
 require('dotenv').config();
 
 const SCORES_PER_BATCH = 1000;
 const BATCH_FETCH = 10;
-const DEV_USER_ID = -1; //If not -1, it will only process scores from this user (good for testing random scores but same profile)
+
+const SCORE_TEMP_BLACKLIST = {}; // {scoreId: timestamp} - if a score fails to process, it will be blacklisted for one hour to avoid spamming the diff calc server
+
+async function removeFromCache(beatmapId) {
+    //in case of error, the map must be removed from cache, so its forced to recalculate next time
+    //most errors are random for no reason (potential race conditions, but outside of our control)
+    const url = process.env.NODE_ENV === 'development' ? process.env.DIFF_CALC_URL_DEV : process.env.DIFF_CALC_URL;
+
+    try {
+        const response = await axios.delete(`http://${url}/cache?beatmap_id=${beatmapId}`);
+    } catch (error) {
+        console.error(`[DIFF-CALC] Error removing beatmap ID ${beatmapId} from cache:`, error.message);
+    }
+}
 
 async function requestData(score) {
     const url = process.env.NODE_ENV === 'development' ? process.env.DIFF_CALC_URL_DEV : process.env.DIFF_CALC_URL;
 
-    const beatmapId = score.beatmap_id;
-    const mods = score.mods;
-    const rulesetId = score.ruleset_id;
+    const beatmapId = score.ScoreLive.beatmap_id;
+    const mods = score.ScoreLive.mods;
+    const rulesetId = score.ScoreLive.ruleset_id;
 
     const postData = {
         beatmap_id: beatmapId,
@@ -26,22 +39,42 @@ async function requestData(score) {
         });
         return response.data;
     } catch (error) {
-        console.error(`Error requesting data for score ID ${score.id}:`, error.message);
+        console.error(`Error requesting data for score ID ${score.score_id}:`, error.message);
         throw error;
     }
 }
 
 async function countMissingScores() {
-    const count = await AltScoreLive.count({
+    const count = await AltScoreAttribute.count({
         where: {
-            ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: [
                 { modded_sr: null },
                 { attr_diff: null },
                 { attr_recalc: true },
-            ]
+            ],
+            // Exclude blacklisted scores
+            score_id: {
+                [Op.notIn]: Object.keys(SCORE_TEMP_BLACKLIST).filter(scoreId => {
+                    const blacklistTime = SCORE_TEMP_BLACKLIST[scoreId];
+                    // Remove from blacklist if the time has passed
+                    if (Date.now() > blacklistTime) {
+                        delete SCORE_TEMP_BLACKLIST[scoreId];
+                        return false;
+                    }
+                    return true;
+                })
+            }
         },
-        include: [{ model: AltBeatmapLive, required: true }],
+        include: [{
+            model: AltScoreLive,
+            attributes: ['beatmap_id', 'mods', 'ruleset_id'],
+            include: [{
+                model: AltBeatmapLive,
+                attributes: ['beatmap_id'], //forced beatmap to exist in the first place
+                required: true
+            }]
+        }],
+        // logging: console.log, // Log the SQL query for debugging
     });
     console.log(`[DIFF-CALC] Found ${count.toFixed(0)} scores missing diff calculations.`);
     return count;
@@ -50,17 +83,37 @@ async function countMissingScores() {
 let avgTimePerBatch = []; //array of {totalTime: number, batchCount: number}, remove old entries after 50 batches to keep a recent average
 async function processScores(totalMissing) {
     let timeFetch = Date.now();
-    const scores = await AltScoreLive.findAll({
+    const scores = await AltScoreAttribute.findAll({
         where: {
-            ...(DEV_USER_ID !== -1 ? { user_id: DEV_USER_ID } : {}),
             [Op.or]: [
                 { modded_sr: null },
                 { attr_diff: null },
                 { attr_recalc: true },
-            ]
+            ],
+            // Exclude blacklisted scores
+            score_id: {
+                [Op.notIn]: Object.keys(SCORE_TEMP_BLACKLIST).filter(scoreId => {
+                    const blacklistTime = SCORE_TEMP_BLACKLIST[scoreId];
+                    // Remove from blacklist if the time has passed
+                    if (Date.now() > blacklistTime) {
+                        delete SCORE_TEMP_BLACKLIST[scoreId];
+                        return false;
+                    }
+                    return true;
+                })
+            }
         },
-        include: [{ model: AltBeatmapLive, required: true }],
-        // order: [['id', 'ASC']],
+        //include scorelive to get beatmap_id, mods, ruleset_id
+        include: [{
+            model: AltScoreLive,
+            attributes: ['beatmap_id', 'mods', 'ruleset_id'],
+            include: [{
+                model: AltBeatmapLive,
+                attributes: ['beatmap_id'],
+                required: true
+            }]
+        }],
+        order: [['attr_date', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
@@ -80,7 +133,7 @@ async function processScores(totalMissing) {
     for (let i = 0; i < scores.length; i += BATCH_FETCH) {
         const batch = scores.slice(i, i + BATCH_FETCH);
         await Promise.all(batch.map(async (score) => {
-            const scoreId = score.id;
+            const scoreId = score.score_id;
             try {
                 const data = await requestData(score);
                 if (!data || Object.keys(data).length === 0) {
@@ -89,12 +142,15 @@ async function processScores(totalMissing) {
                 }
 
                 if (data.is_errored === false) {
-                    delete data.is_errored;
+                    throw new Error(`[DIFF-CALC] Received unexpected is_errored=false for score ID ${scoreId}. Data: ${JSON.stringify(data)}`);
+                    // delete data.is_errored;
                 }
 
                 dataMap.set(scoreId, data);
             } catch (error) {
                 console.error(`[DIFF-CALC] Error processing score ID ${scoreId}:`, error);
+                SCORE_TEMP_BLACKLIST[scoreId] = Date.now() + 3600000;
+                await removeFromCache(score.ScoreLive.beatmap_id);
             }
         }));
     }
@@ -105,14 +161,14 @@ async function processScores(totalMissing) {
 
     const values = Array.from(dataMap.entries()).map(([scoreId, data]) => {
         const attrDiffStr = JSON.stringify(data);
-        return `(${scoreId}, '${attrDiffStr.replace(/'/g, "''")}'::jsonb, ${data.star_rating})`;
+        return `(${scoreId}, '${attrDiffStr.replace(/'/g, "''")}'::jsonb, now(), ${data.star_rating})`;
     }).join(', ');
 
     const updateQuery = `
-        UPDATE scorelive
-        SET attr_diff = v.attr_diff, attr_recalc = false, modded_sr = v.star_rating
-        FROM (VALUES ${values}) AS v(id, attr_diff, star_rating)
-        WHERE scorelive.id = v.id;
+        UPDATE scoreattribute
+        SET attr_diff = v.attr_diff, attr_date = v.attr_date, attr_recalc = false, modded_sr = v.star_rating
+        FROM (VALUES ${values}) AS v(score_id, attr_diff, attr_date, star_rating)
+        WHERE scoreattribute.score_id = v.score_id;
     `;
 
     try {
