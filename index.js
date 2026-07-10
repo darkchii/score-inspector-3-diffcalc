@@ -23,9 +23,6 @@ async function removeFromCache(beatmapId) {
 async function requestData(score) {
     const url = process.env.NODE_ENV === 'development' ? process.env.DIFF_CALC_URL_DEV : process.env.DIFF_CALC_URL;
 
-    console.log(score);
-    //freeze for 10 mins - dev purposes
-    await new Promise(resolve => setTimeout(resolve, 10 * 60 * 1000));
     const beatmapId = score.ScoreLive.beatmap_id;
     const mods = score.ScoreLive.mods;
     const rulesetId = score.ScoreLive.ruleset_id;
