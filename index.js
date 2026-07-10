@@ -143,9 +143,14 @@ async function processScores(totalMissing) {
                     return;
                 }
 
-                if (data.is_errored === false) {
-                    throw new Error(`[DIFF-CALC] Received unexpected is_errored=false for score ID ${scoreId}. Data: ${JSON.stringify(data)}`);
+                if (data.is_errored === true) {
+                    throw new Error(`[DIFF-CALC] Received unexpected is_errored=true for score ID ${scoreId}. Data: ${JSON.stringify(data)}`);
                     // delete data.is_errored;
+                }
+
+                //if is_errored is set to anything, delete the property
+                if ('is_errored' in data) {
+                    delete data.is_errored;
                 }
 
                 dataMap.set(scoreId, data);
