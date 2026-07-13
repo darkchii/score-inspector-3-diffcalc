@@ -7,6 +7,7 @@ const SCORES_PER_BATCH = 1000;
 const BATCH_FETCH = 10;
 
 const SCORE_TEMP_BLACKLIST = {}; // {scoreId: timestamp} - if a score fails to process, it will be blacklisted for one hour to avoid spamming the diff calc server
+const DEV_USER_ID = -1; //-1 means no user filter, other wise user_ID
 
 async function removeFromCache(beatmapId) {
     //in case of error, the map must be removed from cache, so its forced to recalculate next time
@@ -47,10 +48,18 @@ async function requestData(score) {
 async function countMissingScores() {
     const count = await AltScoreAttribute.count({
         where: {
-            [Op.or]: [
-                { modded_sr: null },
-                { attr_diff: null },
-                { attr_recalc: true },
+            // [Op.or]: [
+            //     { modded_sr: null },
+            //     { attr_diff: null },
+            //     { attr_recalc: true },
+            // ],
+            [Op.and]: [
+                ...DEV_USER_ID !== -1 ? [{ '$ScoreLive.user_id_fk$': DEV_USER_ID }] : [],
+                { [Op.or]: [
+                    { modded_sr: null },
+                    { attr_diff: null },
+                    { attr_recalc: true },
+                ]},
             ],
             // Exclude blacklisted scores
             score_id: {
@@ -86,10 +95,13 @@ async function processScores(totalMissing) {
     let timeFetch = Date.now();
     const scores = await AltScoreAttribute.findAll({
         where: {
-            [Op.or]: [
-                { modded_sr: null },
-                { attr_diff: null },
-                { attr_recalc: true },
+            [Op.and]: [
+                ...DEV_USER_ID !== -1 ? [{ '$ScoreLive.user_id_fk$': DEV_USER_ID }] : [],
+                { [Op.or]: [
+                    { modded_sr: null },
+                    { attr_diff: null },
+                    { attr_recalc: true },
+                ]},
             ],
             // Exclude blacklisted scores
             score_id: {
@@ -115,7 +127,7 @@ async function processScores(totalMissing) {
             }],
             required: true
         }],
-        order: [['attr_date', 'ASC']],
+        // order: [['attr_date', 'ASC']],
         limit: SCORES_PER_BATCH
     });
 
